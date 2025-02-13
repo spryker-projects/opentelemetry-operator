@@ -23,6 +23,16 @@ When they introduce this functionality, shift the code from [aws_cloud_map.go](c
 
 This arch is based on the Kubernetes Operator arch of the Otel HA service and the official documentation of OTEL. It mitigates Duplicate Samples and Out-of-order Timestamp Errors in Prometheus.(<https://promlabs.com/blog/2022/12/15/understanding-duplicate-samples-and-out-of-order-timestamp-errors-in-prometheus/>)
 
+### Persistance and High Availablity
+
+High Availability and Persistence cannot be enabled at once because two or more instances of collector cannot share the same queue - this leads to issues and collectors wont start. This is easily fix by separate folder in the access point of the EFS but now the problem comes that if an instance of the collectors dies it cannot know which folder must be mounted on it as there is no separate id which bounds a collector task instance per volume folder. This is solved in Kubernetes by StatefulSets - thats exactly what they do - apart from the standard ID of the pod/task there is sequencial integer which is kept in the controller, so if instance dies the next one immediately assign the same volume. In ECS Stateful sets don’t exist but they can still be done by a simple mapping in SSM and init container. IN SSM we create under the collector hierarchy like - <usual_setup_hierarchy>/otel-collector/queue/<1,2,3,4…. based on the amount of replicas> with value “lock“ or true doesn’t matter - this is to signify that the folder is mounted.
+
+The init container bash script has access to the SSM in this space and checks, if the numbers in the queue - 1, 2, 3, 4 … there are available ones it just locks it and takes this folder. If all are taken it crosschecks with the amount of replicas currently configured and if number is less creates another in the sequence and new folder for queue.
+
+This implementation is simple and can be applied to static amount of collector service task instances. Autoscaling is not possible without recreation because if desired instances are reduced this can lead to left over folder which is not collected. For this to be mitigated there is a need for a separate overarching manager which is an overkill in this implementation. In reality our use case is at most 3 collectors and vertical scaling which can get us to very high volumes from a single cluster.
+
+All this is handled in kubernetes already.
+
 ## Creation of a new image
 
 ### Prerequisites
