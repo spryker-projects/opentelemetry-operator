@@ -7,14 +7,32 @@ Current limitation is High Availability and Persistence cannot be enabled at onc
 Community decided that they would like to expose filesystem based discovery of collectors in the Target Allocator, instead of ECS extention. This is not yet implemented by them. TA is a small application which doesn't have much opportunity for side effects.
 When they introduce this functionality, shift the code from [aws_cloud_map.go](cmd/otel-allocator/collector/aws_cloud_map.go) and [collector.go](cmd/otel-allocator/collector/collector.go) to a separate binary the result list must be written in the filesystem by os.Write so the TA could read it. This binary will work in the same task definition with TA container and the small collector which only discovers instances. The results are passed via mount point containers. This is stateless and can run as many instances we need(more than 2 is an overkill).
 
-## Prerequisites
+## Current architecture
+
+![HAOtelSetup](/docs/diagrams/otel_collectors_topologies-HA%20Setup%20and%20Scaling%20V2.drawio.png)
+
+### Flow
+
+1. Agents Collectors send to the Gateway collector(named Collector Service) node metrics and traces from the instances on the node.
+2. Target Allocator service collectors all the Prometheus-compliant endpoints from the cluster based on static configuration. The same collects all the available collectors by id from the Collector Service and distributes the endpoints on HTTP endpoints to be used.
+3. Each collector instance from the Collector Service connects to the Tartget Allocator endpoint to collect the endpoints for itself. ALl this is done by instance id. The collector instance knows its instance id by ECS metadata presented to it on startup.
+4. Collector tasks start scraping the endpoints discovered by prometheus http_sd.
+5. The telemetry scraped is send to Internal Observability Backend and Customer Observability Backend
+
+### Details
+
+This arch is based on the Kubernetes Operator arch of the Otel HA service and the official documentation of OTEL. It mitigates Duplicate Samples and Out-of-order Timestamp Errors in Prometheus.(<https://promlabs.com/blog/2022/12/15/understanding-duplicate-samples-and-out-of-order-timestamp-errors-in-prometheus/>)
+
+## Creation of a new image
+
+### Prerequisites
 
 * aws-cli - v2.x
 * make - any modern version or system make will work
 * docker-cli - any will work
 * golang - go 1.22.0 (based on the go.mod file)
 
-## Build
+### Build
 
 ```
 cd <base_repo_dir>
