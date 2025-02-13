@@ -4,6 +4,9 @@ This README points to the process of building Target Allocator image for the Hig
 
 Current limitation is High Availability and Persistence cannot be enabled at once. For this to happen, this needs to be implemented as a further feature.
 
+Community decided that they would like to expose filesystem based discovery of collectors in the Target Allocator, instead of ECS extention. This is not yet implemented by them. TA is a small application which doesn't have much opportunity for side effects.
+When they introduce this functionality, shift the code from [aws_cloud_map.go](cmd/otel-allocator/collector/aws_cloud_map.go) and [collector.go](cmd/otel-allocator/collector/collector.go) to a separate binary the result list must be written in the filesystem by os.Write so the TA could read it. This binary will work in the same task definition with TA container and the small collector which only discovers instances. The results are passed via mount point containers. This is stateless and can run as many instances we need(more than 2 is an overkill).
+
 ## Prerequisites
 
 * aws-cli - v2.x
